@@ -1,0 +1,16 @@
+@import "tailwindcss";
+@config "../tailwind.config.cjs";
+
+@layer base {
+  html { background: #080B14; }
+  body { @apply bg-void text-primary font-body antialiased; }
+  * { @apply border-border; }
+  :focus-visible { @apply outline-2 outline-signal outline-offset-2; }
+  ::selection { @apply bg-signal/20 text-signal; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0D1220; }
+::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #00D4FF40; }

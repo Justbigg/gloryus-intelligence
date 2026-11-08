@@ -1,0 +1,20 @@
+{
+  "name": "Gloryus Intelligence",
+  "short_name": "GloryusAI",
+  "description": "See the signal. Find the opportunity. Build what's next.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080B14",
+  "theme_color": "#00D4FF",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "screenshots": []
+}
