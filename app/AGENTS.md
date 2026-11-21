@@ -45,10 +45,16 @@ src/
     layout/                # Landing and application layouts
     ui/                    # Shared UI components
   pages/                   # Landing, dashboard, trends, reports, admin, etc.
-  lib/                     # PocketBase client, providers, demo data, census helper
+  lib/                     # PocketBase client, providers, demo data, census, BLS & GDELT helpers
 api/
   census.js                # Vercel serverless proxy for api.census.gov; holds
                            # CENSUS_API_KEY server-side (env var / .env.local)
+  bls.js                   # Vercel serverless proxy for api.bls.gov (v2
+                           # timeseries data); injects BLS_API_KEY server-side
+                           # (optional env var / .env.local)
+  gdelt.js                 # Vercel serverless proxy for gdeltcloud.com (v2
+                           # read endpoints); injects GDELT_API_KEY server-side
+                           # (required env var / .env.local)
 .env.local                 # Server-only secrets, gitignored
 public/
   favicon.svg

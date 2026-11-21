@@ -34,8 +34,19 @@ export default async function handler(req, res) {
   try {
     const upstream = await fetch(`${CENSUS_BASE}/${path}?${qs.toString()}`);
     const body = await upstream.text();
+
+    // Invalid/expired keys make the Census API answer HTTP 200 with an HTML
+    // error page instead of JSON — surface that as a clean upstream error
+    // rather than letting the client choke on `JSON.parse('<html>...')`.
+    const contentType = upstream.headers.get('content-type') || '';
+    if (!contentType.includes('json')) {
+      return res.status(502).json({
+        error: 'Census API returned a non-JSON response — check that CENSUS_API_KEY is valid',
+      });
+    }
+
     res.status(upstream.status);
-    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
+    res.setHeader('Content-Type', contentType || 'application/json');
     res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
     res.send(body);
   } catch {
