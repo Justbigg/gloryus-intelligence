@@ -88,7 +88,7 @@ export default function SocialIntelligence() {
   const flowData = getFlowData(topSignal);
 
   const topOpportunities = demoSocialSignals
-    .sort((a, b) => b.engagementScore - a.engagementScore)
+    .toSorted((a, b) => b.engagementScore - a.engagementScore)
     .slice(0, 3);
 
   return (
