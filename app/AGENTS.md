@@ -45,7 +45,11 @@ src/
     layout/                # Landing and application layouts
     ui/                    # Shared UI components
   pages/                   # Landing, dashboard, trends, reports, admin, etc.
-  lib/                     # PocketBase client, providers, and demo data
+  lib/                     # PocketBase client, providers, demo data, census helper
+api/
+  census.js                # Vercel serverless proxy for api.census.gov; holds
+                           # CENSUS_API_KEY server-side (env var / .env.local)
+.env.local                 # Server-only secrets, gitignored
 public/
   favicon.svg
   manifest.json
