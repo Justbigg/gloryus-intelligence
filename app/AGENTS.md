@@ -58,6 +58,12 @@ vite.config.js
 tailwind.config.cjs
 ```
 
+Live data integration: `CensusProvider` in `src/lib/providers.js` fetches US
+Census demographics (state population + median household income, ACS 5-year)
+through the `/api/census` proxy and falls back to demo data when the proxy or
+`CENSUS_API_KEY` is unavailable. Consumed by the Market Snapshot panel in
+`src/pages/SocialIntelligence.jsx`. Other providers still serve demo data.
+
 The application is a marketing intelligence product branded **Gloryus
 Intelligence**. `src/App.jsx` defines the landing route and application pages
 including dashboard, trends, trend radar, social intelligence, opportunities,

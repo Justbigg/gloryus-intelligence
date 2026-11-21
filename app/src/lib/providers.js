@@ -9,6 +9,7 @@ import {
   demoReports,
   demoQA,
 } from './demoData.js';
+import { fetchCensus } from './census.js';
 
 // ─── Demo Provider ───────────────────────────────────────────────────────────
 // Implements all data fetching using static demo data.
@@ -186,6 +187,84 @@ export class AIProvider {
   }
 }
 
+// ─── Census Provider ─────────────────────────────────────────────────────────
+// Live US Census Bureau demographics via the serverless proxy (app/api/census.js).
+// The API key stays server-side; this module only calls /api/census.
+// Falls back to static demo data when the proxy is unreachable (e.g. the
+// CENSUS_API_KEY env var is not yet configured).
+
+const DEMO_DEMOGRAPHIC_STATES = [
+  { name: 'California', fips: '06', population: 38900000, medianIncome: 95500 },
+  { name: 'Texas', fips: '48', population: 30500000, medianIncome: 75700 },
+  { name: 'New York', fips: '36', population: 19600000, medianIncome: 81200 },
+  { name: 'Florida', fips: '12', population: 22600000, medianIncome: 68800 },
+  { name: 'Washington', fips: '53', population: 7800000, medianIncome: 90600 },
+  { name: 'Colorado', fips: '08', population: 5870000, medianIncome: 87500 },
+];
+
+function classifyIncomeBand(income, median) {
+  if (income >= median * 1.15) return 'High-income market';
+  if (income <= median * 0.85) return 'Value-driven market';
+  return 'Mid-market';
+}
+
+export class CensusProvider {
+  #cache = null;
+
+  /**
+   * Top states by population with median household income.
+   * @returns {Promise<{source: 'live'|'demo', states: Array, error?: string}>}
+   */
+  async getMarketDemographics() {
+    if (this.#cache) return this.#cache;
+
+    let result;
+    try {
+      const rows = await fetchCensus({
+        get: 'NAME,B01003_001E,B19013_001E',
+        for: 'state:*',
+      });
+      const [header, ...body] = rows;
+      const idx = {
+        name: header.indexOf('NAME'),
+        population: header.indexOf('B01003_001E'),
+        income: header.indexOf('B19013_001E'),
+        fips: header.indexOf('state'),
+      };
+      // The Census API returns sentinel values (e.g. -666666666) for
+      // suppressed estimates — treat non-positive numbers as missing.
+      const states = body
+        .map((row) => ({
+          name: row[idx.name],
+          fips: row[idx.fips],
+          population: Number(row[idx.population]),
+          medianIncome: Number(row[idx.income]) > 0 ? Number(row[idx.income]) : null,
+        }))
+        .filter((s) => s.population > 0 && s.medianIncome)
+        .sort((a, b) => b.population - a.population)
+        .slice(0, 10);
+
+      const medianIncome =
+        [...states].sort((a, b) => a.medianIncome - b.medianIncome)[
+          Math.floor(states.length / 2)
+        ]?.medianIncome || 0;
+      const tagged = states.map((s) => ({
+        ...s,
+        incomeBand: classifyIncomeBand(s.medianIncome, medianIncome),
+      }));
+
+      result = { source: 'live', states: tagged };
+    } catch (err) {
+      result = { source: 'demo', error: err.message, states: DEMO_DEMOGRAPHIC_STATES };
+    }
+
+    this.#cache = result;
+    return result;
+  }
+}
+
 // ─── Active Provider ─────────────────────────────────────────────────────────
 // Swap DemoProvider for real providers when integration is ready
 export const dataProvider = new DemoProvider();
+
+export const censusProvider = new CensusProvider();

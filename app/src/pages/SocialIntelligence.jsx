@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Badge } from "../components/ui/Badge.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { demoSocialSignals } from "../lib/demoData.js";
+import { censusProvider } from "../lib/providers.js";
 import Search from "icon:search";
 import ArrowRight from "icon:arrow-right";
 import TrendingUp from "icon:trending-up";
@@ -37,6 +38,10 @@ function formatVolume(v) {
   return v;
 }
 
+function formatMoney(v) {
+  return `$${(v / 1000).toFixed(1)}K`;
+}
+
 function getFlowData(signal) {
   return {
     signal: `${signal.keyword} on ${signal.platform}`,
@@ -53,6 +58,22 @@ export default function SocialIntelligence() {
   const [searchQ, setSearchQ] = useState("");
   const [platformFilter, setPlatformFilter] = useState("All");
   const [sentimentFilter, setSentimentFilter] = useState("All");
+  const [market, setMarket] = useState(null);
+
+  // Live US Census demographics via the serverless proxy. Falls back to
+  // demo data inside the provider when the proxy/key is not configured.
+  useEffect(() => {
+    let cancelled = false;
+    censusProvider
+      .getMarketDemographics()
+      .then((data) => {
+        if (!cancelled) setMarket(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     return demoSocialSignals.filter((s) => {
@@ -142,6 +163,42 @@ export default function SocialIntelligence() {
             ))}
           </div>
         </div>
+      </Card>
+
+      {/* Market Snapshot (US Census demographics) */}
+      <Card className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="w-6 h-6 rounded-full bg-glow/20 text-glow text-xs font-mono font-bold flex items-center justify-center flex-shrink-0">US</span>
+          <h2 className="font-display text-base font-bold text-primary">Market Snapshot</h2>
+          {market && (
+            <Badge variant={market.source === "live" ? "signal" : "amber"} size="xs">
+              {market.source === "live" ? "Live · US Census ACS" : "Demo data"}
+            </Badge>
+          )}
+        </div>
+        {market === null ? (
+          <p className="text-xs text-muted font-body">Loading census demographics…</p>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            {market.states.slice(0, 10).map((state) => (
+              <div
+                key={state.fips}
+                className="rounded-lg border border-border bg-surface p-2.5 hover:border-signal/40 transition-colors"
+              >
+                <div className="font-display text-xs font-bold text-primary truncate">{state.name}</div>
+                <div className="font-mono text-[11px] text-signal mt-1">{formatMoney(state.medianIncome)}</div>
+                <div className="text-[10px] text-muted font-body">{formatVolume(state.population)} people</div>
+                <div className="text-[10px] text-secondary font-body mt-1 leading-tight">{state.incomeBand}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {market?.source === "demo" && (
+          <p className="text-[10px] text-muted font-body mt-3">
+            Live census data unavailable{market.error ? ` — ${market.error}` : ""}. Showing demo data. Set
+            CENSUS_API_KEY in Vercel to enable live figures.
+          </p>
+        )}
       </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
