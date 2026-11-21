@@ -1,6 +1,6 @@
 # Project Setup
 
-Last updated: 2026-11-08
+Last updated: 2026-11-09
 
 Factual state of this project, for the assistant's reference. Record project
 state here only — structure, installed packages, active patterns. Keep it brief.
@@ -69,6 +69,13 @@ Census demographics (state population + median household income, ACS 5-year)
 through the `/api/census` proxy and falls back to demo data when the proxy or
 `CENSUS_API_KEY` is unavailable. Consumed by the Market Snapshot panel in
 `src/pages/SocialIntelligence.jsx`. Other providers still serve demo data.
+BLS and GDELT Cloud are similarly proxied via `api/bls.js` + `src/lib/bls.js`
+and `api/gdelt.js` + `src/lib/gdelt.js`; GDELT is read-only and key-gated.
+
+Admin access: `/admin` (`src/pages/Admin.jsx`) is gated behind a PocketBase
+sign-in form (`_superusers` first, falling back to `users`). The leads query
+only fires when a valid `pb.authStore` session exists; the authoritative
+access control is the `leads` collection API rules on the PocketBase server.
 
 The application is a marketing intelligence product branded **Gloryus
 Intelligence**. `src/App.jsx` defines the landing route and application pages

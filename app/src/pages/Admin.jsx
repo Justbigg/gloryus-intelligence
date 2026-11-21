@@ -9,6 +9,7 @@ import {
   EyeOff,
   FileText,
   LockKeyhole,
+  LogIn,
   LogOut,
   Radio,
   RefreshCw,
@@ -123,8 +124,30 @@ export default function Admin() {
   const [showEmails, setShowEmails] = useState(false);
   const [sessionActive, setSessionActive] = useState(() => pb.authStore.isValid);
   const [now] = useState(() => new Date());
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
+  const [loginError, setLoginError] = useState("");
+
+  // Keep sessionActive in sync with the PocketBase auth store (token expiry,
+  // sign-out from this page or another tab) so admin activities stay gated.
+  useEffect(() => {
+    const unsubscribe = pb.authStore.onChange(() => {
+      setSessionActive(pb.authStore.isValid);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
+    if (!sessionActive) {
+      // No credentials in this browser: never expose or query admin data.
+      setLeads([]);
+      setTotalLeads(null);
+      setLeadsLoaded(true);
+      setLoadError("");
+      return;
+    }
+
     const controller = new AbortController();
     setLeadsLoaded(false);
     setLoadError("");
@@ -139,12 +162,16 @@ export default function Admin() {
       .catch((error) => {
         if (error?.isAbort || controller.signal.aborted) return;
         console.error("Unable to load admin lead data", error);
-        setLoadError("Lead data could not be loaded. Check your connection and collection access rules.");
+        setLoadError(
+          error?.status === 403 || error?.status === 401
+            ? "Your account does not have permission to read leads. Sign in with an authorized admin account or check the collection access rules."
+            : "Lead data could not be loaded. Check your connection and collection access rules."
+        );
         setLeadsLoaded(true);
       });
 
     return () => controller.abort();
-  }, [refreshKey]);
+  }, [refreshKey, sessionActive]);
 
   const analytics = useMemo(() => {
     const industry = countBy(leads, "industry");
@@ -158,12 +185,125 @@ export default function Admin() {
     return { industry, services, recentLeads };
   }, [leads, now]);
 
+  const handleSignIn = async (event) => {
+    event.preventDefault();
+    if (signingIn || !email.trim() || !password) return;
+    setSigningIn(true);
+    setLoginError("");
+
+    try {
+      try {
+        // PocketBase 0.23+: admin/superuser credentials live here.
+        await pb.collection("_superusers").authWithPassword(email.trim(), password);
+      } catch (err) {
+        if (err?.status !== 404 && err?.response?.code !== 404) throw err;
+        // PocketBase < 0.23 (no _superusers collection): try a users account.
+        pb.authStore.clear();
+        await pb.collection("users").authWithPassword(email.trim(), password);
+      }
+      setEmail("");
+      setPassword("");
+    } catch (err) {
+      console.error("Admin sign-in failed", err);
+      setLoginError(
+        "Sign-in failed. Check your email and password, and make sure the account has admin permissions."
+      );
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
   const handleSignOut = () => {
     pb.authStore.clear();
     setSessionActive(false);
   };
 
   const secureTransport = typeof window !== "undefined" && window.location.protocol === "https:";
+
+  // Auth gate: admin data and controls render only after a successful
+  // PocketBase sign-in. The route itself stays public; everything sensitive
+  // lives behind this check, and the leads query only fires when signed in.
+  if (!sessionActive) {
+    return (
+      <div className="flex min-h-full items-center justify-center px-4 py-16 font-body text-primary">
+        <Card className="w-full max-w-sm p-8">
+          <div className="flex flex-col items-center text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-signal/30 bg-signal/10">
+              <LockKeyhole className="h-5 w-5 text-signal" />
+            </div>
+            <h1 className="mt-4 font-display text-xl font-bold text-primary">Admin access</h1>
+            <p className="mt-1 text-sm text-secondary">
+              Sign in with your administrator credentials to view lead analytics and workspace controls.
+            </p>
+          </div>
+
+          <form className="mt-6 space-y-4" onSubmit={handleSignIn}>
+            <div>
+              <label htmlFor="admin-email" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-secondary">
+                Email
+              </label>
+              <input
+                id="admin-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                required
+                disabled={signingIn}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-primary outline-hidden transition focus:border-signal/60 disabled:opacity-50"
+                placeholder="admin@example.com"
+              />
+            </div>
+            <div>
+              <label htmlFor="admin-password" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-secondary">
+                Password
+              </label>
+              <input
+                id="admin-password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+                disabled={signingIn}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-primary outline-hidden transition focus:border-signal/60 disabled:opacity-50"
+                placeholder="••••••••"
+              />
+            </div>
+
+            {loginError && (
+              <p role="alert" className="rounded-lg border border-hot/30 bg-hot/5 px-3 py-2 text-xs text-hot">
+                {loginError}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={signingIn || !email.trim() || !password}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-signal px-4 py-2.5 text-sm font-semibold text-black transition hover:opacity-90 disabled:cursor-wait disabled:opacity-50"
+            >
+              {signingIn ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/60 border-t-transparent" />
+                  Signing in…
+                </>
+              ) : (
+                <>
+                  <LogIn className="h-4 w-4" />
+                  Sign in
+                </>
+              )}
+            </button>
+          </form>
+
+          <p className="mt-6 border-t border-border pt-4 text-center text-[11px] leading-relaxed text-muted">
+            Access is verified by the PocketBase server. Collection rules and
+            account roles decide what signed-in admins may read.
+          </p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto min-h-full max-w-6xl space-y-8 px-4 py-8 font-body text-primary md:px-6">
@@ -253,10 +393,10 @@ export default function Admin() {
           />
           <StatusRow
             icon={ShieldAlert}
-            title="Admin authorization and MFA"
-            detail="This page cannot verify server-side role checks, PocketBase collection rules, or multi-factor authentication. Configure and enforce these on the server before relying on admin access restrictions."
-            status="Verify server-side"
-            tone="warning"
+            title="Server-side authorization"
+            detail="Admin activities are gated behind a PocketBase sign-in in this browser. This page cannot verify collection rules or MFA itself — configure and enforce those on the server; they remain the source of truth."
+            status="Authenticated client-side"
+            tone={sessionActive ? "neutral" : "warning"}
           />
           <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-2 text-xs text-secondary">
